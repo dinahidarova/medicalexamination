@@ -15,3 +15,17 @@ RedirectMatch 403 ^/hms/receptionist/.*$
     Order Allow,Deny
     Allow from all
 </FilesMatch>
+# Защита от доступа к конфигурационным файлам
+<FilesMatch "^(config\.php|logging\.php)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+# Запрет просмотра директорий
+Options -Indexes
+
+# Защита от XSS
+Header set X-XSS-Protection "1; mode=block"
+
+# Защита от clickjacking
+Header set X-Frame-Options "SAMEORIGIN"

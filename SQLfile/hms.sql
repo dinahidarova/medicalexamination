@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Хост: 127.0.0.1:3306
--- Время создания: Мар 26 2026 г., 13:20
+-- Время создания: Мар 29 2026 г., 15:55
 -- Версия сервера: 8.0.30
 -- Версия PHP: 7.2.34
 
@@ -337,6 +337,22 @@ INSERT INTO `doctorspecilization` (`doctorSpecializationId`, `doctorSpecializati
 -- --------------------------------------------------------
 
 --
+-- Структура таблицы `logs`
+--
+
+CREATE TABLE `logs` (
+  `id` int NOT NULL,
+  `user_id` int DEFAULT NULL,
+  `user_role` varchar(50) DEFAULT NULL,
+  `action` varchar(255) DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` text,
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+
+-- --------------------------------------------------------
+
+--
 -- Структура таблицы `reception`
 --
 
@@ -409,31 +425,38 @@ CREATE TABLE `tblpatient` (
   `Docid` int DEFAULT NULL,
   `PatientName` varchar(200) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
   `PatientContno` bigint DEFAULT NULL,
+  `policy_number` varchar(20) DEFAULT NULL,
   `PatientEmail` varchar(200) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
+  `login` varchar(100) DEFAULT NULL,
+  `passwords` varchar(255) DEFAULT NULL,
+  `status` enum('active','blocked') DEFAULT 'active',
   `PatientGender` varchar(50) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL,
   `PatientAdd` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci,
   `PatientDOB` date DEFAULT NULL,
   `PatientMedhis` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci,
   `CreationDate` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  `UpdationDate` timestamp NULL DEFAULT NULL
+  `UpdationDate` timestamp NULL DEFAULT NULL,
+  `consent_given` tinyint(1) DEFAULT '0' COMMENT 'Согласие на обработку ПДн',
+  `consent_date` datetime DEFAULT NULL COMMENT 'Дата согласия',
+  `consent_ip` varchar(45) DEFAULT NULL COMMENT 'IP адрес при согласии'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 
 --
 -- Дамп данных таблицы `tblpatient`
 --
 
-INSERT INTO `tblpatient` (`ID`, `Docid`, `PatientName`, `PatientContno`, `PatientEmail`, `PatientGender`, `PatientAdd`, `PatientDOB`, `PatientMedhis`, `CreationDate`, `UpdationDate`) VALUES
-(1, 1, 'Мухаева Алина Сергеевна', 452463210, 'dinahidarova@yandex.ru', 'female', 'Приволжский район, ул. Гарифьянова, д. 8А', '2004-02-19', 'Эссенциальная гипертензия; Боль в пояснице', '2024-05-16 05:23:35', '2025-05-15 20:45:37'),
-(2, 1, 'Князева Ирина Сергеевна', 4545454545, 'dinahidarova@yandex.ru', 'female', 'Вахитовский район, ул. Пушкина, д. 32', '2005-07-06', 'Межрёберная невралгия; Боль в пояснице', '2024-05-16 09:01:26', '2025-05-15 20:45:46'),
-(3, 1, 'Иванов Петр Сергеевич', 79151234567, 'dinahidarova@yandex.ru', 'male', 'Советский район, ул. Хусаина Мавлютова, д. 35', '2000-06-03', 'Пневмония неуточненная; Сахарный диабет 2 типа без осложнений', '2025-06-03 09:41:58', NULL),
-(4, 2, 'Смирнова Анна Владимировна', 79261234567, 'dinahidarova@yandex.ru', 'female', 'Московский район, ул. Восстания, д. 62', '1993-06-03', 'Ожирение; Сахарный диабет 2 типа', '2025-06-03 09:41:58', NULL),
-(5, 3, 'Козлов Дмитрий Игоревич', 79031234567, 'dinahidarova@yandex.ru', 'male', 'Ново-Савиновский район, ул. Четаева, д. 10', '1980-06-03', 'Межрёберная невралгия; Сахарный диабет 2 типа', '2025-06-03 09:41:58', NULL),
-(6, 4, 'Петрова Елена Александровна', 79161234567, 'dinahidarova@yandex.ru', 'female', 'Авиастроительный район, ул. Лукина, д. 5', '1997-06-03', 'Бронхиальная астма', '2025-06-03 09:41:58', NULL),
-(7, 5, 'Сидоров Артем Олегович', 79091234567, 'dinahidarova@yandex.ru', 'male', 'Кировский район, ул. Васильченко, д. 14Б', '2007-06-03', 'Острая инфекция верхних дыхательных путей неуточненная', '2025-06-03 09:41:58', NULL),
-(8, 6, 'Николаева Татьяна Викторовна', 79201234567, 'dinahidarova@yandex.ru', 'female', 'Ново-Савиновский район, ул. Короленко, д. 58', '1970-06-03', 'Межрёберная невралгия; Сахарный диабет 2 типа', '2025-06-03 09:41:58', NULL),
-(9, 7, 'Федоров Максим Андреевич', 79181234567, 'dinahidarova@yandex.ru', 'male', 'Авиастроительный район, ул. Побежимова, д. 47', '1987-06-03', 'Бронхиальная астма', '2025-06-03 09:41:58', NULL),
-(10, 8, 'Волкова Ольга Сергеевна', 79131234567, 'dinahidarova@yandex.ru', 'female', 'Советский район, ул. Завойского, д. 18А', '2003-06-03', 'Железодефицитная анемия неуточненная; Атопический дерматит неуточненный', '2025-06-03 09:41:58', NULL),
-(11, 1, 'Хайдарова Дина Рустемовна', 9600875907, 'hajdarovadina229@gmail.com', 'female', 'Приволжский район, тер. Деревни Универсиады, д. 3/1', '2004-04-12', 'Межрёберная невралгия', '2025-06-05 19:59:43', NULL);
+INSERT INTO `tblpatient` (`ID`, `Docid`, `PatientName`, `PatientContno`, `policy_number`, `PatientEmail`, `login`, `passwords`, `status`, `PatientGender`, `PatientAdd`, `PatientDOB`, `PatientMedhis`, `CreationDate`, `UpdationDate`, `consent_given`, `consent_date`, `consent_ip`) VALUES
+(1, 1, 'Мухаева Алина Сергеевна', 452463210, NULL, 'dinahidarova@yandex.ru', NULL, '$2y$10$4AgWQ8xDoKm8G1AKeM3/juMCHL/b.zVkrt37zG3nrCitCcEcDCoVu', 'active', 'female', 'Приволжский район, ул. Гарифьянова, д. 8А', '2004-02-19', 'Эссенциальная гипертензия; Боль в пояснице', '2024-05-16 05:23:35', '2025-05-15 20:45:37', 0, NULL, NULL),
+(2, 1, 'Князева Ирина Сергеевна', 4545454545, NULL, 'dinahidarova@yandex.ru', NULL, '$2y$10$N7UutY5eD30GZ6tbCtZBM.osl0IE.z9SmNRK9l.uigPLSEVrCiDb.', 'active', 'female', 'Вахитовский район, ул. Пушкина, д. 32', '2005-07-06', 'Межрёберная невралгия; Боль в пояснице', '2024-05-16 09:01:26', '2025-05-15 20:45:46', 0, NULL, NULL),
+(3, 1, 'Иванов Петр Сергеевич', 79151234567, NULL, 'dinahidarova@yandex.ru', NULL, '$2y$10$tGkrQv9XyQdc0Te78god5eQ1xX.z1eiupucs.cD8gd8oSGs11MJI6', 'active', 'male', 'Советский район, ул. Хусаина Мавлютова, д. 35', '2000-06-03', 'Пневмония неуточненная; Сахарный диабет 2 типа без осложнений', '2025-06-03 09:41:58', NULL, 0, NULL, NULL),
+(4, 2, 'Смирнова Анна Владимировна', 79261234567, NULL, 'dinahidarova@yandex.ru', NULL, '$2y$10$R4oyGVZhksy56t5M1YsH/emVp3dmgg0QUXgnvwOQClDYl49cBCqZG', 'active', 'female', 'Московский район, ул. Восстания, д. 62', '1993-06-03', 'Ожирение; Сахарный диабет 2 типа', '2025-06-03 09:41:58', NULL, 0, NULL, NULL),
+(5, 3, 'Козлов Дмитрий Игоревич', 79031234567, NULL, 'dinahidarova@yandex.ru', NULL, '$2y$10$2F8KKwvG7RwdDYjy2h/wHuWR.ELeH.etnWvHe7iNvh6VJxPUVZd5a', 'active', 'male', 'Ново-Савиновский район, ул. Четаева, д. 10', '1980-06-03', 'Межрёберная невралгия; Сахарный диабет 2 типа', '2025-06-03 09:41:58', NULL, 0, NULL, NULL),
+(6, 4, 'Петрова Елена Александровна', 79161234567, NULL, 'dinahidarova@yandex.ru', NULL, '$2y$10$zShZ90vwHU9neNUViGC9d.4z.zmUO6v1sANia/t65aSfkG5l55IDO', 'active', 'female', 'Авиастроительный район, ул. Лукина, д. 5', '1997-06-03', 'Бронхиальная астма', '2025-06-03 09:41:58', NULL, 0, NULL, NULL),
+(7, 5, 'Сидоров Артем Олегович', 79091234567, NULL, 'dinahidarova@yandex.ru', NULL, '$2y$10$9oBMccULRSjLPhoEVSMKo.Nl9uDqFhUNySz07ACwbplwjE6Jy4xFq', 'active', 'male', 'Кировский район, ул. Васильченко, д. 14Б', '2007-06-03', 'Острая инфекция верхних дыхательных путей неуточненная', '2025-06-03 09:41:58', NULL, 0, NULL, NULL),
+(8, 6, 'Николаева Татьяна Викторовна', 79201234567, NULL, 'dinahidarova@yandex.ru', NULL, '$2y$10$fNoCj3Z.Omyf0zIr3euGz.y.cb6YV9OwedN66o0m7R5ThTx49aTEO', 'active', 'female', 'Ново-Савиновский район, ул. Короленко, д. 58', '1970-06-03', 'Межрёберная невралгия; Сахарный диабет 2 типа', '2025-06-03 09:41:58', NULL, 0, NULL, NULL),
+(9, 7, 'Федоров Максим Андреевич', 79181234567, NULL, 'dinahidarova@yandex.ru', NULL, '$2y$10$C5wnezpifARSFdCqsH.TN.fuF2R68PAVUnv4Lzg17xpxMcDLa18P6', 'active', 'male', 'Авиастроительный район, ул. Побежимова, д. 47', '1987-06-03', 'Бронхиальная астма', '2025-06-03 09:41:58', NULL, 0, NULL, NULL),
+(10, 8, 'Волкова Ольга Сергеевна', 79131234567, NULL, 'dinahidarova@yandex.ru', NULL, '$2y$10$L0P2Qbn969ptU6lA2dbLOeXynJ/8kFiI662OsaU.ye3ZYxglgk/h6', 'active', 'female', 'Советский район, ул. Завойского, д. 18А', '2003-06-03', 'Железодефицитная анемия неуточненная; Атопический дерматит неуточненный', '2025-06-03 09:41:58', NULL, 0, NULL, NULL),
+(11, 1, 'Хайдарова Дина Рустемовна', 9600875907, NULL, 'hajdarovadina229@gmail.com', NULL, '$2y$10$lRQzK17ztRPBlYvh3rCnOOzObxa3qJcqwJCkbhEVm59F8vHyknFs6', 'active', 'female', 'Приволжский район, тер. Деревни Универсиады, д. 3/1', '2004-04-12', 'Межрёберная невралгия', '2025-06-05 19:59:43', NULL, 0, NULL, NULL);
 
 --
 -- Индексы сохранённых таблиц
@@ -482,6 +505,14 @@ ALTER TABLE `doctorslog`
 --
 ALTER TABLE `doctorspecilization`
   ADD PRIMARY KEY (`doctorSpecializationId`);
+
+--
+-- Индексы таблицы `logs`
+--
+ALTER TABLE `logs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_user_id` (`user_id`),
+  ADD KEY `idx_created_at` (`created_at`);
 
 --
 -- Индексы таблицы `reception`
@@ -548,6 +579,12 @@ ALTER TABLE `doctorslog`
 --
 ALTER TABLE `doctorspecilization`
   MODIFY `doctorSpecializationId` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
+
+--
+-- AUTO_INCREMENT для таблицы `logs`
+--
+ALTER TABLE `logs`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT для таблицы `reception`

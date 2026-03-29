@@ -43,7 +43,7 @@ if(isset($_SESSION['id']) && isset($_SESSION['role'])) {
         
         body {
             font-family: 'Roboto', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%, #4ba29b 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -121,7 +121,7 @@ if(isset($_SESSION['id']) && isset($_SESSION['role'])) {
         .btn-login {
             width: 100%;
             padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%, #4b91a2 100%);
             color: white;
             border: none;
             border-radius: 10px;
