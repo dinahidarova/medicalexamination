@@ -122,6 +122,8 @@ $exams_count = $medical['count'];
                                 </div>
                             </div>
                             
+
+                            
                             <!-- Карточка записей на прием -->
                             <div class="col-sm-4">
                                 <div class="panel panel-white no-radius text-center">

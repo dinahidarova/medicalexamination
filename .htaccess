@@ -1,9 +1,9 @@
 # Запрещаем прямой доступ к папкам других ролей
-RedirectMatch 403 ^/hms/admin/.*$
-RedirectMatch 403 ^/hms/doctor/.*$
-RedirectMatch 403 ^/hms/employee/.*$
-RedirectMatch 403 ^/hms/laboratorist/.*$
-RedirectMatch 403 ^/hms/receptionist/.*$
+#RedirectMatch 403 ^/hms/admin/.*$
+#RedirectMatch 403 ^/hms/doctor/.*$
+#RedirectMatch 403 ^/hms/employee/.*$
+#RedirectMatch 403 ^/hms/laboratorist/.*$
+#RedirectMatch 403 ^/hms/receptionist/.*$
 
 # Разрешаем доступ только для пациентов и index.php
 <FilesMatch "^(index\.php|logout\.php)$">

@@ -52,6 +52,16 @@ while($row=mysqli_fetch_array($query))
 										</a>
 									</li>
 									<li>
+										<a href="sign-consent.php">
+											Согласие на обработку ПДн
+										</a>
+									</li>
+									<li>
+										<a href="view-logs.php">
+											Журнал действий
+										</a>
+									</li>
+									<li>
 										<a href="logout.php">
 											Выйти из профиля
 										</a>
