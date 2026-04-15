@@ -274,11 +274,8 @@ if(isset($_SESSION['id']) && isset($_SESSION['role'])) {
                 <p>Нет учетной записи? <a href="hms/patient/register.php">Зарегистрироваться</a></p>
             </div>
             
-            <div class="info-note">
-                <p>💡 <strong>Внимание!</strong> Для входа используйте email, номер телефона или номер полиса.<br>
-                Если вы впервые в системе, используйте дату рождения в формате ГГГГММДД (например, 20040412)</p>
-            </div>
-        </div>
+      
+        </div> 
     </div>
 </body>
 </html>

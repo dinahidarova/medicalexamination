@@ -123,5 +123,148 @@ if($has_final && !empty($final['DoctorID'])) {
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/bootstrap/js/bootstrap.min.js"></script>
     <script src="assets/js/main.js"></script>
+    <div class="panel panel-default" style="margin-top: 20px;">
+    <div class="panel-heading">
+        <h4 class="panel-title"><i class="fa fa-chart-line"></i> Динамика ключевых показателей</h4>
+    </div>
+    <div class="panel-body">
+        <canvas id="healthChart" style="width: 100%; height: 300px;"></canvas>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- График динамики показателей -->
+<div class="panel panel-default" style="margin-top: 20px;">
+    <div class="panel-heading">
+        <h4 class="panel-title"><i class="fa fa-chart-line"></i> Динамика ключевых показателей</h4>
+    </div>
+    <div class="panel-body">
+        <canvas id="healthChart" style="width: 100%; height: 300px;"></canvas>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+<?php
+// Получаем данные для графика ТОЛЬКО где есть числовые показатели
+$chart_query = "SELECT 
+    DATE_FORMAT(CreationDate, '%d.%m.%Y') as date,
+    BloodPressure, 
+    BloodSugar, 
+    Weight, 
+    Temperature
+FROM tblmedicalhistory 
+WHERE PatientID = '$patient_id' 
+    AND (
+        (BloodPressure IS NOT NULL AND BloodPressure != '') OR
+        (BloodSugar IS NOT NULL AND BloodSugar != '') OR
+        (Weight IS NOT NULL AND Weight != '') OR
+        (Temperature IS NOT NULL AND Temperature != '')
+    )
+ORDER BY CreationDate ASC";
+
+$chart_result = mysqli_query($con, $chart_query);
+
+$dates = [];
+$systolic = [];      // верхнее давление
+$diastolic = [];     // нижнее давление
+$sugar = [];
+$weight = [];
+$temperature = [];
+
+while($row = mysqli_fetch_assoc($chart_result)) {
+    $dates[] = $row['date'];
+    
+    // Парсим давление (формат "120/80" или "120")
+    if(!empty($row['BloodPressure'])) {
+        if(strpos($row['BloodPressure'], '/') !== false) {
+            $bp = explode('/', $row['BloodPressure']);
+            $systolic[] = (int)$bp[0];
+            $diastolic[] = (int)$bp[1];
+        } else {
+            $systolic[] = (int)$row['BloodPressure'];
+            $diastolic[] = null;
+        }
+    } else {
+        $systolic[] = null;
+        $diastolic[] = null;
+    }
+    
+    // Сахар
+    $sugar[] = !empty($row['BloodSugar']) ? (float)$row['BloodSugar'] : null;
+    
+    // Вес
+    $weight[] = !empty($row['Weight']) ? (float)$row['Weight'] : null;
+    
+    // Температура
+    $temperature[] = !empty($row['Temperature']) ? (float)$row['Temperature'] : null;
+}
+?>
+
+const ctx = document.getElementById('healthChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: <?php echo json_encode($dates); ?>,
+        datasets: [
+            {
+                label: 'Давление (верхнее), мм рт.ст.',
+                data: <?php echo json_encode($systolic); ?>,
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                borderWidth: 2,
+                tension: 0.3,
+                fill: true
+            },
+            {
+                label: 'Уровень сахара, ммоль/л',
+                data: <?php echo json_encode($sugar); ?>,
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                borderWidth: 2,
+                tension: 0.3,
+                fill: true
+            },
+            {
+                label: 'Вес, кг',
+                data: <?php echo json_encode($weight); ?>,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                borderWidth: 2,
+                tension: 0.3,
+                fill: true
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                position: 'top',
+            },
+            tooltip: {
+                mode: 'index',
+                intersect: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: false,
+                title: {
+                    display: true,
+                    text: 'Значения показателей'
+                }
+            },
+            x: {
+                title: {
+                    display: true,
+                    text: 'Дата обследования'
+                }
+            }
+        }
+    }
+});
+</script>
 </body>
 </html>
