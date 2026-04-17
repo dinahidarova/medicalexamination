@@ -184,66 +184,96 @@ $exams_count = $medical['count'];
                     </div>
                     <!-- end: ИНФОРМАЦИОННЫЕ КАРТОЧКИ -->
                     
-                    <!-- start: ПОСЛЕДНИЕ ЗАПИСИ -->
-                    <div class="container-fluid container-fullw bg-white" style="margin-top: 20px;">
-                        <div class="row">
-                            <div class="col-md-12">
-                                <h3 class="text-primary">📋 Последние записи на прием</h3>
-                                <div class="table-responsive">
-                                    <?php
-                                    $recent_query = "SELECT a.*, d.doctorName, ds.doctorSpecialization 
-                                                     FROM appointment a 
-                                                     LEFT JOIN doctors d ON a.doctorId = d.id 
-                                                     LEFT JOIN doctorspecilization ds ON a.doctorSpecializationId = ds.doctorSpecializationId 
-                                                     WHERE a.userId = '$patient_id' 
-                                                     ORDER BY a.appointmentDate DESC, a.appointmentTime DESC 
-                                                     LIMIT 5";
-                                    $recent_result = mysqli_query($con, $recent_query);
-                                    
-                                    if(mysqli_num_rows($recent_result) > 0):
-                                    ?>
-                                    <table class="table table-striped table-hover">
-                                        <thead>
-                                             <tr>
-                                                <th>Дата</th>
-                                                <th>Время</th>
-                                                <th>Врач</th>
-                                                <th>Специализация</th>
-                                                <th>Статус</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php while($app = mysqli_fetch_assoc($recent_result)): ?>
-                                            <tr>
-                                                <td><?php echo date('d.m.Y', strtotime($app['appointmentDate'])); ?></td>
-                                                <td><?php echo $app['appointmentTime'] ? date('H:i', strtotime($app['appointmentTime'])) : '—'; ?></td>
-                                                <td><?php echo htmlspecialchars($app['doctorName']); ?></td>
-                                                <td><?php echo htmlspecialchars($app['doctorSpecialization']); ?></td>
-                                                <td>
-                                                    <?php if($app['isCompleted'] == 1): ?>
-                                                        <span class="label label-success">Завершен</span>
-                                                    <?php elseif(strtotime($app['appointmentDate']) < time()): ?>
-                                                        <span class="label label-warning">Просрочен</span>
-                                                    <?php else: ?>
-                                                        <span class="label label-info">Запланирован</span>
-                                                    <?php endif; ?>
-                                                </td>
-                                            </tr>
-                                            <?php endwhile; ?>
-                                        </tbody>
-                                    </table>
-                                    <?php else: ?>
-                                    <p class="text-center">У вас пока нет записей на прием</p>
-                                    <div class="text-center">
-                                        <a href="book-appointment.php" class="btn btn-primary">Записаться на прием</a>
+  <!-- start: ЗАПЛАНИРОВАННЫЕ ДИСПАНСЕРИЗАЦИИ -->
+<div class="container-fluid container-fullw bg-white" style="margin-top: 20px;">
+    <div class="row">
+        <div class="col-md-12">
+            <h3 class="text-primary">🏥 Мои диспансеризации</h3>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Дата диспансеризации</th>
+                            <th>Статус</th>
+                            <th>Прогресс</th>
+                            <th>Действие</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        // Запрашиваем предстоящие и текущие диспансеризации
+                        $dispensary_query = "SELECT * FROM dispensarization 
+                                             WHERE patientId = '$patient_id' 
+                                             ORDER BY dispDate DESC";
+                        $dispensary_result = mysqli_query($con, $dispensary_query);
+                        
+                        if(mysqli_num_rows($dispensary_result) == 0): ?>
+                            <tr>
+                                <td colspan="4" class="text-center">Нет записей на диспансеризацию</td>
+                            </tr>
+                        <?php else: ?>
+                            <?php while($disp = mysqli_fetch_assoc($dispensary_result)): 
+                                // Определяем статус
+                                $status_label = '';
+                                $status_class = '';
+                                $can_cancel = false;
+                                
+                                if($disp['status'] == 'completed') {
+                                    $status_label = '✅ Завершена';
+                                    $status_class = 'success';
+                                } elseif(strtotime($disp['dispDate']) < time()) {
+                                    $status_label = '❌ Просрочена';
+                                    $status_class = 'danger';
+                                } else {
+                                    $status_label = '⏳ Запланирована';
+                                    $status_class = 'info';
+                                    $can_cancel = true;
+                                }
+                                
+                                // Подсчитываем прогресс (сколько обследований выполнено)
+                                $progress_query = "SELECT COUNT(*) as total FROM dispensary_exams WHERE dispensary_id = '{$disp['id']}'";
+                                $progress_result = mysqli_query($con, $progress_query);
+                                $total_exams = mysqli_fetch_assoc($progress_result)['total'] ?? 0;
+                                
+                                $completed_query = "SELECT COUNT(*) as done FROM dispensary_exams WHERE dispensary_id = '{$disp['id']}' AND status = 'completed'";
+                                $completed_result = mysqli_query($con, $completed_query);
+                                $completed_exams = mysqli_fetch_assoc($completed_result)['done'] ?? 0;
+                                
+                                $percent = $total_exams > 0 ? round($completed_exams / $total_exams * 100) : 0;
+                            ?>
+                            <tr>
+                                <td><?php echo date('d.m.Y', strtotime($disp['dispDate'])); ?>
+                                <td><span class="label label-<?php echo $status_class; ?>"><?php echo $status_label; ?></span>
+                                <td>
+                                    <div class="progress" style="margin-bottom: 0; width: 150px;">
+                                        <div class="progress-bar progress-bar-success" role="progressbar" style="width: <?php echo $percent; ?>%;">
+                                            <?php echo $percent; ?>%
+                                        </div>
                                     </div>
+                                
+                                <td>
+                                    <?php if($can_cancel): ?>
+                                        <a href="cancel-dispensary.php?id=<?php echo $disp['id']; ?>" 
+                                           class="btn btn-danger btn-sm" 
+                                           onclick="return confirm('Отменить запись на диспансеризацию <?php echo date('d.m.Y', strtotime($disp['dispDate'])); ?>?')">
+                                            <i class="fa fa-times"></i> Отменить
+                                        </a>
+                                    <?php else: ?>
+                                        <a href="examination-results.php" class="btn btn-success btn-sm">
+                                            <i class="fa fa-file-text-o"></i> Результаты
+                                        </a>
                                     <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!-- end: ПОСЛЕДНИЕ ЗАПИСИ -->
-                    
+                                
+                            </tr>
+                            <?php endwhile; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- end: ЗАПЛАНИРОВАННЫЕ ДИСПАНСЕРИЗАЦИИ -->
                 </div>
             </div>
         </div>

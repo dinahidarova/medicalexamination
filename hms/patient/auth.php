@@ -1,54 +1,57 @@
 <?php
 session_start();
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
+// Подключаем конфигурацию
 require_once __DIR__ . '/../include/config.php';
 
+// Проверяем подключение к БД
 if (!isset($con) || !$con) {
-    die("Ошибка подключения к БД");
+    die("Ошибка подключения к базе данных");
 }
 
+// Обработка POST запроса
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $login = mysqli_real_escape_string($con, $_POST['login']);
+    
+    // Получаем данные из формы
+    $login = trim($_POST['login']);
     $password = $_POST['password'];
     
-    // Поиск по телефону или email
-    $query = "SELECT * FROM tblpatient 
-              WHERE PatientContno = '$login' OR PatientEmail = '$login'";
+    // Защита от SQL-инъекций
+    $login = mysqli_real_escape_string($con, $login);
+    
+    // Ищем пациента по email или телефону
+    $query = "SELECT * FROM tblpatient WHERE PatientEmail = '$login' OR PatientContno = '$login'";
     $result = mysqli_query($con, $query);
     
-    if (mysqli_num_rows($result) == 0) {
-        header("Location: ../../index.php?error=invalid");
-        exit();
-    }
-    
-    $row = mysqli_fetch_assoc($result);
-    
-    // Проверка пароля
-    $expected_password = date('Ymd', strtotime($row['PatientDOB']));
-    $auth_success = false;
-    
-    if (!empty($row['passwords']) && password_verify($password, $row['passwords'])) {
-        $auth_success = true;
-    } elseif ($password == $expected_password) {
-        $auth_success = true;
-        $hashed = password_hash($password, PASSWORD_DEFAULT);
-        mysqli_query($con, "UPDATE tblpatient SET passwords = '$hashed' WHERE ID = '{$row['ID']}'");
-    }
-    
-    if ($auth_success) {
-        $_SESSION['id'] = $row['ID'];
-        $_SESSION['name'] = $row['PatientName'];
-        $_SESSION['role'] = 'patient';
+    // Если пациент найден
+    if ($row = mysqli_fetch_assoc($result)) {
         
-        header("Location: dashboard.php");
-        exit();
+        // Проверяем пароль
+        if (password_verify($password, $row['passwords'])) {
+            
+            // Успешный вход - сохраняем в сессию
+            $_SESSION['id'] = $row['ID'];
+            $_SESSION['name'] = $row['PatientName'];
+            $_SESSION['role'] = 'patient';
+            $_SESSION['email'] = $row['PatientEmail'];
+            
+            // Перенаправляем в личный кабинет
+            header("Location: dashboard.php");
+            exit();
+        } else {
+            // Неверный пароль
+            header("Location: ../../index.php?error=invalid");
+            exit();
+        }
+        
     } else {
+        // Пациент не найден
         header("Location: ../../index.php?error=invalid");
         exit();
     }
+    
 } else {
+    // Не POST запрос - перенаправляем на главную
     header("Location: ../../index.php");
     exit();
 }

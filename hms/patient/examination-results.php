@@ -3,33 +3,49 @@ session_start();
 require_once __DIR__ . '/include/config.php';
 
 if(!isset($_SESSION['id']) || $_SESSION['role'] !== 'patient') {
-    header("Location: index.php");
+    header("Location: 199 index.php");
     exit();
 }
 
 $patient_id = $_SESSION['id'];
 
 // Получаем итоговое заключение терапевта
-$query = "SELECT * FROM tblmedicalhistory 
+$final_result = mysqli_query($con, "SELECT * FROM tblmedicalhistory 
     WHERE PatientID = '$patient_id' 
     AND FinalConclusion IS NOT NULL 
     AND FinalConclusion != ''
     ORDER BY CreationDate DESC 
-    LIMIT 1";
+    LIMIT 1");
 
-$result = mysqli_query($con, $query);
-$has_final = mysqli_num_rows($result) > 0;
-$final = $has_final ? mysqli_fetch_assoc($result) : null;
+$has_final = mysqli_num_rows($final_result) > 0;
+$final = $has_final ? mysqli_fetch_assoc($final_result) : null;
 
-// Получаем имя врача
-$therapist_name = '';
-if($has_final && !empty($final['DoctorID'])) {
-    $doc_res = mysqli_query($con, "SELECT doctorName FROM doctors WHERE id = '{$final['DoctorID']}'");
-    if($doc_res && mysqli_num_rows($doc_res) > 0) {
-        $doc = mysqli_fetch_assoc($doc_res);
-        $therapist_name = $doc['doctorName'];
+// ========== НОВЫЙ КОД: ОПРЕДЕЛЕНИЕ ГРУППЫ ЗДОРОВЬЯ ==========
+function getHealthGroup($final_conclusion, $has_deviations) {
+    $conclusion_lower = mb_strtolower($final_conclusion);
+    
+    if (!$has_deviations) {
+        return ['group' => 'I', 'label' => 'I группа - здоров', 'color' => 'success', 'description' => 'Хронические неинфекционные заболевания отсутствуют, факторы риска не выявлены.'];
+    } elseif ($has_deviations && (strpos($conclusion_lower, 'фактор риска') !== false || strpos($conclusion_lower, 'незначительн') !== false)) {
+        return ['group' => 'II', 'label' => 'II группа - факторы риска', 'color' => 'warning', 'description' => 'Выявлены факторы риска развития хронических неинфекционных заболеваний. Требуется профилактическое консультирование.'];
+    } else {
+        return ['group' => 'III', 'label' => 'III группа - требуется наблюдение', 'color' => 'danger', 'description' => 'Выявлены заболевания, требующие диспансерного наблюдения и лечения.'];
     }
 }
+
+$has_deviations = false;
+if($has_final && !empty($final['FinalConclusion'])) {
+    $conclusion_text = mb_strtolower($final['FinalConclusion']);
+    if(strpos($conclusion_text, 'отклонени') !== false || strpos($conclusion_text, 'повышен') !== false) {
+        $has_deviations = true;
+    }
+}
+
+$health_info = null;
+if($has_final) {
+    $health_info = getHealthGroup($final['FinalConclusion'], $has_deviations);
+}
+// ========== КОНЕЦ НОВОГО КОДА ==========
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -102,6 +118,13 @@ if($has_final && !empty($final['DoctorID'])) {
                                         </div>
                                     </div>
                                 <?php endif; ?>
+
+                                <?php if($health_info): ?>
+<div class="alert alert-<?php echo $health_info['color']; ?>" style="margin-top: 15px;">
+    <strong>Группа здоровья: <?php echo $health_info['label']; ?></strong><br>
+    <?php echo $health_info['description']; ?>
+</div>
+<?php endif; ?>
                                 
                                 <div class="text-center" style="margin-top: 20px;">
                                     <a href="dashboard.php" class="btn btn-default">

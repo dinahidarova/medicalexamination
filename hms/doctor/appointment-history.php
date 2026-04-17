@@ -12,7 +12,7 @@ if(!isset($_SESSION['id']) || strlen($_SESSION['id']) == 0) {
     }
     
     // Обработка отметки о завершении приема
-    if(isset($_POST['mark_completed'])) {
+    if(isset($_POST['_completed'])) {
         $appointmentId = intval($_POST['appointment_id']);
         $doctorId = $_SESSION['id'];
         $summary = trim($_POST['medical_summary']);
@@ -68,6 +68,22 @@ if(!isset($_SESSION['id']) || strlen($_SESSION['id']) == 0) {
         $_SESSION['msg'] = "Приём завершён и заключение сохранено!";
         header("Location: appointment-history.php");
         exit();
+        // Отправка email пациенту о готовности результатов
+require_once __DIR__ . '/../include/mail.php';
+
+$patient_mail_query = "SELECT PatientEmail, PatientName FROM tblpatient WHERE ID = '$patientId'";
+$patient_mail_res = mysqli_query($con, $patient_mail_query);
+$patient_mail_data = mysqli_fetch_assoc($patient_mail_res);
+
+$subject = "Результаты диспансеризации готовы";
+$mail_message = "
+    <p>Уважаемый(ая) <strong>{$patient_mail_data['PatientName']}</strong>!</p>
+    <p>Результаты вашей диспансеризации готовы и доступны в личном кабинете.</p>
+    <p>Вы можете ознакомиться с итоговым заключением терапевта.</p>
+    <hr>
+    <p><a href='http://hospital/index.php' style='background:#4CAF50; color:white; padding:10px 20px; text-decoration:none; border-radius:5px;'>Перейти в личный кабинет</a></p>
+";
+send_email($patient_mail_data['PatientEmail'], $subject, $mail_message);
     }
 ?>
 <!DOCTYPE html>
@@ -185,7 +201,7 @@ if(!isset($_SESSION['id']) || strlen($_SESSION['id']) == 0) {
                                                         
                                                         <?php if (mysqli_num_rows($historyQuery) > 0): ?>
                                                             <div class="form-group" style="margin-bottom: 10px;">
-                                                                <label>📋 Заключения узких специалистов:</label>
+                                                                <label>📋 Заключения специалистов:</label>
                                                                 <div class="well well-sm" style="max-height: 200px; overflow-y: auto;">
                                                                     <?php while ($h = mysqli_fetch_assoc($historyQuery)): ?>
                                                                         <div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid #eee;">
@@ -219,13 +235,20 @@ if(!isset($_SESSION['id']) || strlen($_SESSION['id']) == 0) {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        
+                                                        <div class="form-group">
+    <label for="second_stage">Рекомендации по второму этапу (если требуется)</label>
+    <textarea name="second_stage" class="form-control" rows="3" placeholder="Например: консультация кардиолога, Холтер ЭКГ, анализ на липидный профиль..."></textarea>
+    <small class="text-muted">Заполняется при выявлении отклонений, требующих дополнительного обследования</small>
+</div>
+
                                                     <?php endif; ?>
                                                     
                                                     <div class="form-group" style="margin-bottom: 10px;">
                                                         <textarea name="medical_summary" class="form-control" rows="2" placeholder="Введите медицинское заключение..." required></textarea>
                                                     </div>
                                                     
-                                                    <button type="submit" name="mark_completed" class="btn btn-success btn-xs" onclick="return confirm('Завершить приём?')">Завершить приём</button>
+                                                    <button type="submit" name="_completed" class="btn btn-success btn-xs" onclick="return confirm('Завершить приём?')">Завершить приём</button>
                                                 </form>
                                                 <?php endif; ?>
                                             </td>

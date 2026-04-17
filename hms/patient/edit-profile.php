@@ -1,220 +1,163 @@
 <?php
 session_start();
-//error_reporting(0);
-include('include/config.php');
-include('include/checklogin.php');
-check_login();
-if(isset($_POST['submit']))
-{
-	$fname=$_POST['fname'];
-$address=$_POST['address'];
-$city=$_POST['city'];
-$gender=$_POST['gender'];
+require_once __DIR__ . '/include/config.php';
 
-$sql=mysqli_query($con,"Update users set fullName='$fname',address='$address',city='$city',gender='$gender' where id='".$_SESSION['id']."'");
-if($sql)
-{
-$msg="Your Profile updated Successfully";
-
-
+if(!isset($_SESSION['id']) || $_SESSION['role'] !== 'patient') {
+    header("Location: index.php");
+    exit();
 }
 
+$patient_id = $_SESSION['id'];
+$error = '';
+$success = '';
+
+// Получаем текущие данные пациента
+$query = "SELECT * FROM tblpatient WHERE ID = '$patient_id'";
+$result = mysqli_query($con, $query);
+$patient = mysqli_fetch_assoc($result);
+
+// Обработка отправки формы
+if($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_profile'])) {
+    $phone = mysqli_real_escape_string($con, $_POST['phone']);
+    $email = mysqli_real_escape_string($con, $_POST['email']);
+    $address = mysqli_real_escape_string($con, $_POST['address']);
+    
+    // Проверка email на уникальность (для других пациентов)
+    $check_email = mysqli_query($con, "SELECT ID FROM tblpatient WHERE PatientEmail = '$email' AND ID != '$patient_id'");
+    if(mysqli_num_rows($check_email) > 0) {
+        $error = 'Этот email уже используется другим пациентом';
+    } else {
+        $update = "UPDATE tblpatient SET 
+                   PatientContno = '$phone', 
+                   PatientEmail = '$email', 
+                   PatientAdd = '$address',
+                   UpdationDate = NOW()
+                   WHERE ID = '$patient_id'";
+        
+        if(mysqli_query($con, $update)) {
+            $success = 'Профиль успешно обновлен';
+            // Обновляем данные в сессии
+            $_SESSION['email'] = $email;
+            // Обновляем данные для отображения
+            $patient['PatientContno'] = $phone;
+            $patient['PatientEmail'] = $email;
+            $patient['PatientAdd'] = $address;
+        } else {
+            $error = 'Ошибка при обновлении: ' . mysqli_error($con);
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
-<html lang="en">
-	<head>
-		<title>User | Edit Profile</title>
-		
-		<link href="http://fonts.googleapis.com/css?family=Lato:300,400,400italic,600,700|Raleway:300,400,500,600,700|Crete+Round:400italic" rel="stylesheet" type="text/css" />
-		<link rel="stylesheet" href="vendor/bootstrap/css/bootstrap.min.css">
-		<link rel="stylesheet" href="vendor/fontawesome/css/font-awesome.min.css">
-		<link rel="stylesheet" href="vendor/themify-icons/themify-icons.min.css">
-		<link href="vendor/animate.css/animate.min.css" rel="stylesheet" media="screen">
-		<link href="vendor/perfect-scrollbar/perfect-scrollbar.min.css" rel="stylesheet" media="screen">
-		<link href="vendor/switchery/switchery.min.css" rel="stylesheet" media="screen">
-		<link href="vendor/bootstrap-touchspin/jquery.bootstrap-touchspin.min.css" rel="stylesheet" media="screen">
-		<link href="vendor/select2/select2.min.css" rel="stylesheet" media="screen">
-		<link href="vendor/bootstrap-datepicker/bootstrap-datepicker3.standalone.min.css" rel="stylesheet" media="screen">
-		<link href="vendor/bootstrap-timepicker/bootstrap-timepicker.min.css" rel="stylesheet" media="screen">
-		<link rel="stylesheet" href="assets/css/styles.css">
-		<link rel="stylesheet" href="assets/css/plugins.css">
-		<link rel="stylesheet" href="assets/css/themes/theme-1.css" id="skin_color" />
-
-
-	</head>
-	<body>
-		<div id="app">		
-<?php include('include/sidebar.php');?>
-			<div class="app-content">
-				
-						<?php include('include/header.php');?>
-						
-				<!-- end: TOP NAVBAR -->
-				<div class="main-content" >
-					<div class="wrap-content container" id="container">
-						<!-- start: PAGE TITLE -->
-						<section id="page-title">
-							<div class="row">
-								<div class="col-sm-8">
-									<h1 class="mainTitle">User | Edit Profile</h1>
-																	</div>
-								<ol class="breadcrumb">
-									<li>
-										<span>User </span>
-									</li>
-									<li class="active">
-										<span>Edit Profile</span>
-									</li>
-								</ol>
-							</div>
-						</section>
-						<!-- end: PAGE TITLE -->
-						<!-- start: BASIC EXAMPLE -->
-						<div class="container-fluid container-fullw bg-white">
-							<div class="row">
-								<div class="col-md-12">
-<h5 style="color: green; font-size:18px; ">
-<?php if($msg) { echo htmlentities($msg);}?> </h5>
-									<div class="row margin-top-30">
-										<div class="col-lg-8 col-md-12">
-											<div class="panel panel-white">
-												<div class="panel-heading">
-													<h5 class="panel-title">Edit Profile</h5>
-												</div>
-												<div class="panel-body">
-									<?php 
-$sql=mysqli_query($con,"select * from users where id='".$_SESSION['id']."'");
-while($data=mysqli_fetch_array($sql))
-{
-?>
-<h4><?php echo htmlentities($data['fullName']);?>'s Profile</h4>
-<p><b>Profile Reg. Date: </b><?php echo htmlentities($data['regDate']);?></p>
-<?php if($data['updationDate']){?>
-<p><b>Profile Last Updation Date: </b><?php echo htmlentities($data['updationDate']);?></p>
-<?php } ?>
-<hr />													<form role="form" name="edit" method="post">
-													
-
-<div class="form-group">
-															<label for="fname">
-																 User Name
-															</label>
-	<input type="text" name="fname" class="form-control" value="<?php echo htmlentities($data['fullName']);?>" >
-														</div>
-
-
-<div class="form-group">
-															<label for="address">
-																 Address
-															</label>
-					<textarea name="address" class="form-control"><?php echo htmlentities($data['address']);?></textarea>
-														</div>
-<div class="form-group">
-															<label for="city">
-																 City
-															</label>
-		<input type="text" name="city" class="form-control" required="required"  value="<?php echo htmlentities($data['city']);?>" >
-														</div>
-	
-<div class="form-group">
-									<label for="gender">
-																Gender
-															</label>
-
-<select name="gender" class="form-control" required="required" >
-<option value="<?php echo htmlentities($data['gender']);?>"><?php echo htmlentities($data['gender']);?></option>
-<option value="male">Male</option>	
-<option value="female">Female</option>	
-<option value="other">Other</option>	
-</select>
-
-														</div>
-
-<div class="form-group">
-									<label for="fess">
-																 User Email
-															</label>
-					<input type="email" name="uemail" class="form-control"  readonly="readonly"  value="<?php echo htmlentities($data['email']);?>">
-					<a href="change-emaild.php">Update your email id</a>
-														</div>
-
-
-
-														
-														
-														
-														
-														<button type="submit" name="submit" class="btn btn-o btn-primary">
-															Update
-														</button>
-													</form>
-													<?php } ?>
-												</div>
-											</div>
-										</div>
-											
-											</div>
-										</div>
-									<div class="col-lg-12 col-md-12">
-											<div class="panel panel-white">
-												
-												
-											</div>
-										</div>
-									</div>
-								</div>
-						
-						<!-- end: BASIC EXAMPLE -->
-			
-					
-					
-						
-						
-					
-						<!-- end: SELECT BOXES -->
-						
-					</div>
-				</div>
-			</div>
-			<!-- start: FOOTER -->
-	<?php include('include/footer.php');?>
-			<!-- end: FOOTER -->
-		
-			<!-- start: SETTINGS -->
-	<?php include('include/setting.php');?>
-			
-			<!-- end: SETTINGS -->
-		</div>
-		<!-- start: MAIN JAVASCRIPTS -->
-		<script src="vendor/jquery/jquery.min.js"></script>
-		<script src="vendor/bootstrap/js/bootstrap.min.js"></script>
-		<script src="vendor/modernizr/modernizr.js"></script>
-		<script src="vendor/jquery-cookie/jquery.cookie.js"></script>
-		<script src="vendor/perfect-scrollbar/perfect-scrollbar.min.js"></script>
-		<script src="vendor/switchery/switchery.min.js"></script>
-		<!-- end: MAIN JAVASCRIPTS -->
-		<!-- start: JAVASCRIPTS REQUIRED FOR THIS PAGE ONLY -->
-		<script src="vendor/maskedinput/jquery.maskedinput.min.js"></script>
-		<script src="vendor/bootstrap-touchspin/jquery.bootstrap-touchspin.min.js"></script>
-		<script src="vendor/autosize/autosize.min.js"></script>
-		<script src="vendor/selectFx/classie.js"></script>
-		<script src="vendor/selectFx/selectFx.js"></script>
-		<script src="vendor/select2/select2.min.js"></script>
-		<script src="vendor/bootstrap-datepicker/bootstrap-datepicker.min.js"></script>
-		<script src="vendor/bootstrap-timepicker/bootstrap-timepicker.min.js"></script>
-		<!-- end: JAVASCRIPTS REQUIRED FOR THIS PAGE ONLY -->
-		<!-- start: CLIP-TWO JAVASCRIPTS -->
-		<script src="assets/js/main.js"></script>
-		<!-- start: JavaScript Event Handlers for this page -->
-		<script src="assets/js/form-elements.js"></script>
-		<script>
-			jQuery(document).ready(function() {
-				Main.init();
-				FormElements.init();
-			});
-		</script>
-		<!-- end: JavaScript Event Handlers for this page -->
-		<!-- end: CLIP-TWO JAVASCRIPTS -->
-	</body>
+<html lang="ru">
+<head>
+    <title>Редактирование профиля</title>
+    <link href="http://fonts.googleapis.com/css?family=Lato:300,400,400italic,600,700|Raleway:300,400,500,600,700|Crete+Round:400italic" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="vendor/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="vendor/fontawesome/css/font-awesome.min.css">
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <link rel="stylesheet" href="assets/css/plugins.css">
+</head>
+<body>
+    <div id="app">
+        <?php include('include/sidebar.php'); ?>
+        <div class="app-content">
+            <?php include('include/header.php'); ?>
+            <div class="main-content">
+                <div class="wrap-content container" id="container">
+                    <section id="page-title">
+                        <div class="row">
+                            <div class="col-sm-8">
+                                <h1 class="mainTitle">Редактирование профиля</h1>
+                                <p>Изменение личных данных</p>
+                            </div>
+                            <ol class="breadcrumb">
+                                <li><span>Пациент</span></li>
+                                <li class="active"><span>Редактирование профиля</span></li>
+                            </ol>
+                        </div>
+                    </section>
+                    
+                    <div class="container-fluid container-fullw bg-white">
+                        <div class="row">
+                            <div class="col-md-6 col-md-offset-3">
+                                <?php if($error): ?>
+                                    <div class="alert alert-danger"><?php echo $error; ?></div>
+                                <?php endif; ?>
+                                <?php if($success): ?>
+                                    <div class="alert alert-success"><?php echo $success; ?></div>
+                                <?php endif; ?>
+                                
+                                <div class="panel panel-white">
+                                    <div class="panel-heading">
+                                        <h4 class="panel-title">Личные данные</h4>
+                                    </div>
+                                    <div class="panel-body">
+                                        <form method="POST" class="form-horizontal">
+                                            <div class="form-group">
+                                                <label class="col-sm-3 control-label">ФИО</label>
+                                                <div class="col-sm-9">
+                                                    <p class="form-control-static"><?php echo htmlspecialchars($patient['PatientName']); ?></p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label class="col-sm-3 control-label">Дата рождения</label>
+                                                <div class="col-sm-9">
+                                                    <p class="form-control-static"><?php echo date('d.m.Y', strtotime($patient['PatientDOB'])); ?></p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label class="col-sm-3 control-label">Пол</label>
+                                                <div class="col-sm-9">
+                                                    <p class="form-control-static"><?php echo ($patient['PatientGender'] == 'female') ? 'Женский' : 'Мужской'; ?></p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label class="col-sm-3 control-label">Телефон</label>
+                                                <div class="col-sm-9">
+                                                    <input type="text" name="phone" class="form-control" value="<?php echo htmlspecialchars($patient['PatientContno']); ?>" required>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label class="col-sm-3 control-label">Email</label>
+                                                <div class="col-sm-9">
+                                                    <input type="email" name="email" class="form-control" value="<?php echo htmlspecialchars($patient['PatientEmail']); ?>" required>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <label class="col-sm-3 control-label">Адрес</label>
+                                                <div class="col-sm-9">
+                                                    <textarea name="address" class="form-control" rows="3"><?php echo htmlspecialchars($patient['PatientAdd'] ?? ''); ?></textarea>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="form-group">
+                                                <div class="col-sm-offset-3 col-sm-9">
+                                                    <button type="submit" name="update_profile" class="btn btn-primary">
+                                                        Сохранить изменения
+                                                    </button>
+                                                    <a href="dashboard.php" class="btn btn-default">Отмена</a>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php include('include/footer.php'); ?>
+    </div>
+    
+    <script src="vendor/jquery/jquery.min.js"></script>
+    <script src="vendor/bootstrap/js/bootstrap.min.js"></script>
+    <script src="assets/js/main.js"></script>
+</body>
 </html>

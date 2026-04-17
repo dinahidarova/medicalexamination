@@ -1,6 +1,7 @@
 <?php
 session_start();
-require_once __DIR__ . '/include/config.php';
+require_once __DIR__ . '/../include/config.php';
+require_once __DIR__ . '/../include/mail.php';
 
 if(!isset($_SESSION['id']) || $_SESSION['role'] !== 'patient') {
     header("Location: index.php");
@@ -11,67 +12,91 @@ $patient_id = $_SESSION['id'];
 $success = false;
 $error = '';
 
-// Получаем список врачей по специальностям
-$doctors_query = "SELECT d.id, d.doctorName, ds.doctorSpecialization 
-                  FROM doctors d
-                  JOIN doctorspecilization ds ON ds.doctorSpecializationId = d.doctorSpecializationId
-                  ORDER BY ds.doctorSpecialization, d.doctorName";
-$doctors_result = mysqli_query($con, $doctors_query);
+// Получаем возраст пациента
+$age_query = "SELECT PatientDOB, PatientName, PatientEmail, TIMESTAMPDIFF(YEAR, PatientDOB, CURDATE()) as age FROM tblpatient WHERE ID = '$patient_id'";
+$age_result = mysqli_query($con, $age_query);
+$patient_data = mysqli_fetch_assoc($age_result);
+$patient_age = $patient_data['age'];
+$patient_email = $patient_data['PatientEmail'];
+$patient_name = $patient_data['PatientName'];
 
-// Получаем список специальностей для фильтра
-$specializations_query = "SELECT doctorSpecializationId, doctorSpecialization FROM doctorspecilization ORDER BY doctorSpecialization";
-$specializations_result = mysqli_query($con, $specializations_query);
-
-// Обработка отправки формы
-if($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_appointment'])) {
-    $doctor_id = intval($_POST['doctor_id']);
-    $appointment_date = mysqli_real_escape_string($con, $_POST['appointment_date']);
-    $appointment_time = mysqli_real_escape_string($con, $_POST['appointment_time']);
+if($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_dispensarization'])) {
+    $dispensary_date = mysqli_real_escape_string($con, $_POST['dispensary_date']);
     
-    // Получаем специальность врача
-    $spec_query = mysqli_query($con, "SELECT doctorSpecializationId FROM doctors WHERE id = '$doctor_id'");
-    $spec = mysqli_fetch_assoc($spec_query);
-    $spec_id = $spec['doctorSpecializationId'];
+    // Проверка периодичности
+    $last_query = "SELECT dispDate FROM dispensarization WHERE patientId = '$patient_id' AND status = 'completed' ORDER BY dispDate DESC LIMIT 1";
+    $last_result = mysqli_query($con, $last_query);
     
-    // Проверяем, нет ли уже записи на это время
-    $check_query = "SELECT * FROM appointment 
-                    WHERE doctorId = '$doctor_id' 
-                    AND appointmentDate = '$appointment_date' 
-                    AND appointmentTime = '$appointment_time'";
+    if(mysqli_num_rows($last_result) > 0) {
+        $last_row = mysqli_fetch_assoc($last_result);
+        $last_date = strtotime($last_row['dispDate']);
+        $current_date = strtotime($dispensary_date);
+        $years_diff = date('Y', $current_date) - date('Y', $last_date);
+        
+        if($patient_age < 40 && $years_diff < 3) {
+            $error = 'Вы можете пройти диспансеризацию только раз в 3 года. Следующая запись возможна через ' . (3 - $years_diff) . ' год(а).';
+        } elseif($patient_age >= 40 && $years_diff < 1) {
+            $error = 'Вы можете пройти диспансеризацию только раз в год. Следующая запись возможна через ' . (12 - date('m', $current_date)) . ' месяцев.';
+        }
+    }
+    
+    // Проверяем, нет ли уже записи на эту дату
+    $check_query = "SELECT * FROM dispensarization WHERE patientId = '$patient_id' AND dispDate = '$dispensary_date'";
     $check_result = mysqli_query($con, $check_query);
     
     if(mysqli_num_rows($check_result) > 0) {
-        $error = 'На выбранное время уже есть запись. Пожалуйста, выберите другое время.';
-    } else {
-        $insert = "INSERT INTO appointment (doctorSpecializationId, doctorId, userId, appointmentDate, appointmentTime, isCompleted) 
-                   VALUES ('$spec_id', '$doctor_id', '$patient_id', '$appointment_date', '$appointment_time', 0)";
+        $error = 'Вы уже записаны на диспансеризацию на эту дату.';
+    } elseif(empty($error)) {
+        // Создаем запись о диспансеризации
+        $insert = "INSERT INTO dispensarization (patientId, dispDate, status) VALUES ('$patient_id', '$dispensary_date', 'in_progress')";
         
         if(mysqli_query($con, $insert)) {
+            $dispensary_id = mysqli_insert_id($con);
+            
+            // Создаем список обследований по возрасту
+            if($patient_age < 40) {
+                $exams = ['Терапевт', 'Общий анализ крови', 'Общий анализ мочи', 'Флюорография', 'ЭКГ'];
+            } else {
+                $exams = ['Терапевт', 'Общий анализ крови', 'Общий анализ мочи', 'Флюорография', 'ЭКГ', 'Офтальмолог', 'Кардиолог'];
+            }
+            
+            foreach($exams as $exam) {
+                $insert_exam = "INSERT INTO dispensary_exams (dispensary_id, exam_name, status) VALUES ('$dispensary_id', '$exam', 'pending')";
+                mysqli_query($con, $insert_exam);
+            }
+            
+            // Отправляем email-уведомление
+            $subject = "Запись на диспансеризацию подтверждена";
+            $message = "
+                <p>Уважаемый(ая) <strong>$patient_name</strong>!</p>
+                <p>Вы успешно записаны на диспансеризацию.</p>
+                <p><strong>Дата:</strong> " . date('d.m.Y', strtotime($dispensary_date)) . "</p>
+                <p><strong>Время:</strong> 09:00 - 16:00</p>
+                <p><strong>Место:</strong> Ваша поликлиника по месту прикрепления</p>
+                <p><strong>Что взять с собой:</strong> паспорт, полис ОМС</p>
+                <hr>
+                <p>Для отмены записи войдите в личный кабинет.</p>
+            ";
+            send_email($patient_email, $subject, $message);
+            
             $success = true;
         } else {
             $error = 'Ошибка при записи: ' . mysqli_error($con);
         }
     }
 }
+
+$planned_query = "SELECT * FROM dispensarization WHERE patientId = '$patient_id' AND dispDate >= CURDATE() AND status = 'in_progress' ORDER BY dispDate ASC";
+$planned_result = mysqli_query($con, $planned_query);
 ?>
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <title>Запись на приём - Пациент</title>
+    <title>Запись на диспансеризацию</title>
     <link href="http://fonts.googleapis.com/css?family=Lato:300,400,400italic,600,700|Raleway:300,400,500,600,700|Crete+Round:400italic" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" href="vendor/bootstrap/css/bootstrap.min.css">
     <link rel="stylesheet" href="vendor/fontawesome/css/font-awesome.min.css">
-    <link rel="stylesheet" href="vendor/themify-icons/themify-icons.min.css">
-    <link href="vendor/animate.css/animate.min.css" rel="stylesheet" media="screen">
-    <link href="vendor/perfect-scrollbar/perfect-scrollbar.min.css" rel="stylesheet" media="screen">
-    <link href="vendor/switchery/switchery.min.css" rel="stylesheet" media="screen">
-    <link href="vendor/bootstrap-touchspin/jquery.bootstrap-touchspin.min.css" rel="stylesheet" media="screen">
-    <link href="vendor/select2/select2.min.css" rel="stylesheet" media="screen">
-    <link href="vendor/bootstrap-datepicker/bootstrap-datepicker3.standalone.min.css" rel="stylesheet" media="screen">
-    <link href="vendor/bootstrap-timepicker/bootstrap-timepicker.min.css" rel="stylesheet" media="screen">
     <link rel="stylesheet" href="assets/css/styles.css">
-    <link rel="stylesheet" href="assets/css/plugins.css">
-    <link rel="stylesheet" href="assets/css/themes/theme-1.css" id="skin_color" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ru.js"></script>
@@ -86,12 +111,12 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_appointment'])) {
                     <section id="page-title">
                         <div class="row">
                             <div class="col-sm-8">
-                                <h1 class="mainTitle">📅 Запись на приём к врачу</h1>
-                                <p>Выберите врача и удобное время для посещения</p>
+                                <h1 class="mainTitle">Запись на диспансеризацию</h1>
+                                <p>Профилактический медицинский осмотр 1 раз в 3 года (до 39 лет) или ежегодно (40+ лет)</p>
                             </div>
                             <ol class="breadcrumb">
                                 <li><span>Пациент</span></li>
-                                <li class="active"><span>Запись на приём</span></li>
+                                <li class="active"><span>Запись</span></li>
                             </ol>
                         </div>
                     </section>
@@ -101,115 +126,60 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_appointment'])) {
                             <div class="col-md-12">
                                 <?php if($success): ?>
                                     <div class="alert alert-success">
-                                        <i class="fa fa-check-circle"></i>
-                                        <strong>✅ Запись успешно создана!</strong><br>
-                                        Вы можете отслеживать статус записи в разделе "Мои визиты".
+                                        <strong>Запись успешно создана!</strong><br>
+                                        Уведомление отправлено на вашу электронную почту: <?php echo htmlspecialchars($patient_email); ?>
                                     </div>
                                 <?php endif; ?>
-                                
                                 <?php if($error): ?>
-                                    <div class="alert alert-danger">
-                                        <i class="fa fa-exclamation-triangle"></i>
-                                        <strong>❌ Ошибка:</strong> <?php echo $error; ?>
-                                    </div>
+                                    <div class="alert alert-danger"><?php echo $error; ?></div>
                                 <?php endif; ?>
                                 
-                                <form method="POST" class="form-horizontal">
-                                    <div class="panel panel-white">
-                                        <div class="panel-heading">
-                                            <h4 class="panel-title"><i class="fa fa-calendar-plus-o"></i> Выберите врача и время</h4>
-                                        </div>
-                                        <div class="panel-body">
+                                <div class="panel panel-white">
+                                    <div class="panel-heading">
+                                        <h4 class="panel-title">Выберите дату</h4>
+                                    </div>
+                                    <div class="panel-body">
+                                        <form method="POST" class="form-horizontal">
                                             <div class="form-group">
-                                                <label class="col-sm-3 control-label">Специализация:</label>
+                                                <label class="col-sm-3 control-label">Дата диспансеризации:</label>
                                                 <div class="col-sm-6">
-                                                    <select id="specialization_filter" class="form-control">
-                                                        <option value="">Все специализации</option>
-                                                        <?php while($spec = mysqli_fetch_assoc($specializations_result)): ?>
-                                                            <option value="<?php echo $spec['doctorSpecialization']; ?>">
-                                                                <?php echo htmlspecialchars($spec['doctorSpecialization']); ?>
-                                                            </option>
-                                                        <?php endwhile; ?>
-                                                    </select>
+                                                    <input type="text" name="dispensary_date" id="datepicker" class="form-control" placeholder="Выберите дату" required>
                                                 </div>
                                             </div>
-                                            
-                                            <div class="form-group">
-                                                <label class="col-sm-3 control-label">Врач:</label>
-                                                <div class="col-sm-6">
-                                                    <select name="doctor_id" id="doctor_select" class="form-control" required>
-                                                        <option value="">-- Выберите врача --</option>
-                                                        <?php 
-                                                        mysqli_data_seek($doctors_result, 0);
-                                                        while($doc = mysqli_fetch_assoc($doctors_result)): 
-                                                        ?>
-                                                            <option value="<?php echo $doc['id']; ?>" data-specialization="<?php echo $doc['doctorSpecialization']; ?>">
-                                                                <?php echo htmlspecialchars($doc['doctorName']) . ' (' . htmlspecialchars($doc['doctorSpecialization']) . ')'; ?>
-                                                            </option>
-                                                        <?php endwhile; ?>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            
-                                            <div class="form-group">
-                                                <label class="col-sm-3 control-label">Дата приёма:</label>
-                                                <div class="col-sm-6">
-                                                    <input type="text" name="appointment_date" id="datepicker" class="form-control" placeholder="Выберите дату" required>
-                                                </div>
-                                            </div>
-                                            
-                                            <div class="form-group">
-                                                <label class="col-sm-3 control-label">Время приёма:</label>
-                                                <div class="col-sm-6">
-                                                    <select name="appointment_time" class="form-control" required>
-                                                        <option value="">-- Выберите время --</option>
-                                                        <option value="09:00:00">09:00</option>
-                                                        <option value="09:30:00">09:30</option>
-                                                        <option value="10:00:00">10:00</option>
-                                                        <option value="10:30:00">10:30</option>
-                                                        <option value="11:00:00">11:00</option>
-                                                        <option value="11:30:00">11:30</option>
-                                                        <option value="12:00:00">12:00</option>
-                                                        <option value="13:00:00">13:00</option>
-                                                        <option value="13:30:00">13:30</option>
-                                                        <option value="14:00:00">14:00</option>
-                                                        <option value="14:30:00">14:30</option>
-                                                        <option value="15:00:00">15:00</option>
-                                                        <option value="15:30:00">15:30</option>
-                                                        <option value="16:00:00">16:00</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-                                            
                                             <div class="form-group">
                                                 <div class="col-sm-offset-3 col-sm-6">
-                                                    <button type="submit" name="book_appointment" class="btn btn-primary">
-                                                        <i class="fa fa-calendar-check-o"></i> Записаться на приём
-                                                    </button>
+                                                    <button type="submit" name="book_dispensarization" class="btn btn-primary">Записаться</button>
                                                     <a href="dashboard.php" class="btn btn-default">Отмена</a>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </form>
                                     </div>
-                                </form>
-                                
-                                <div class="alert alert-info" style="margin-top: 20px;">
-                                    <i class="fa fa-info-circle"></i>
-                                    <strong>Информация:</strong>
-                                    <ul style="margin-top: 10px;">
-                                        <li>Приём ведётся по предварительной записи</li>
-                                        <li>При себе необходимо иметь паспорт и полис ОМС</li>
-                                        <li>В случае невозможности прийти, пожалуйста, отмените запись заранее</li>
-                                    </ul>
                                 </div>
                                 
-                                <div class="text-center" style="margin-top: 20px;">
-                                    <a href="dashboard.php" class="btn btn-default">
-                                        <i class="fa fa-arrow-left"></i> Вернуться в личный кабинет
-                                    </a>
-                                    <a href="medical-history.php" class="btn btn-primary">
-                                        <i class="fa fa-history"></i> Мои визиты
-                                    </a>
+                                <?php if(mysqli_num_rows($planned_result) > 0): ?>
+                                <div class="panel panel-white">
+                                    <div class="panel-heading">
+                                        <h4 class="panel-title">Запланированные диспансеризации</h4>
+                                    </div>
+                                    <div class="panel-body">
+                                        <table class="table table-striped">
+                                            <thead><tr><th>Дата</th><th>Статус</th><th>Действие</th></tr></thead>
+                                            <tbody>
+                                                <?php while($row = mysqli_fetch_assoc($planned_result)): ?>
+                                                <tr>
+                                                    <td><?php echo date('d.m.Y', strtotime($row['dispDate'])); ?></td>
+                                                    <td><span class="label label-warning">Ожидает</span></td>
+                                                    <td><a href="cancel-dispensary.php?id=<?php echo $row['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Отменить запись?')">Отменить</a></td>
+                                                </tr>
+                                                <?php endwhile; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                                
+                                <div class="text-center">
+                                    <a href="dashboard.php" class="btn btn-default">Назад</a>
                                 </div>
                             </div>
                         </div>
@@ -218,56 +188,17 @@ if($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_appointment'])) {
             </div>
         </div>
         <?php include('include/footer.php'); ?>
-        <?php include('include/setting.php'); ?>
     </div>
-    
     <script>
-        // Фильтр врачей по специализации
-        const specializationFilter = document.getElementById('specialization_filter');
-        const doctorSelect = document.getElementById('doctor_select');
-        const doctors = Array.from(doctorSelect.options);
-        
-        specializationFilter.addEventListener('change', function() {
-            const selectedSpec = this.value;
-            
-            doctors.forEach(option => {
-                if(option.value === '') return;
-                const spec = option.getAttribute('data-specialization');
-                if(selectedSpec === '' || spec === selectedSpec) {
-                    option.style.display = '';
-                } else {
-                    option.style.display = 'none';
-                }
-            });
-            
-            doctorSelect.value = '';
-        });
-        
-        // Настройка календаря
         flatpickr("#datepicker", {
             locale: "ru",
             minDate: "today",
             dateFormat: "Y-m-d",
-            disable: [
-                function(date) {
-                    return date.getDay() === 0;
-                }
-            ]
+            disable: [function(date) { return date.getDay() === 0; }]
         });
     </script>
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/bootstrap/js/bootstrap.min.js"></script>
-    <script src="vendor/modernizr/modernizr.js"></script>
-    <script src="vendor/jquery-cookie/jquery.cookie.js"></script>
-    <script src="vendor/perfect-scrollbar/perfect-scrollbar.min.js"></script>
-    <script src="vendor/switchery/switchery.min.js"></script>
     <script src="assets/js/main.js"></script>
-    <script src="assets/js/form-elements.js"></script>
-    <script>
-        jQuery(document).ready(function() {
-            Main.init();
-            FormElements.init();
-        });
-    </script>
 </body>
 </html>
